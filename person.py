@@ -16,9 +16,6 @@ class Person:
         self.max_hr = self.calc_max_heart_rate()
 
 
-    def set_hr(self, hr):
-        self.hr_max = hr
-
     def get_full_name(self):
         return self.lastname + ", " + self.firstname
 
