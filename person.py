@@ -30,7 +30,7 @@ class Person:
     
 if __name__ == "__main__":
     print("Testing Person class")
-    p = Person(1, 1990, "Julian", "Huber", "")
+    p = Person(1, 1990, "Julian", "Huber", "data/pictures/tb.jpg")
     print(p.get_full_name())
     print(p.calc_age())
     img = p.get_image()
