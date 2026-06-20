@@ -1,6 +1,3 @@
-print("Hello world")
-
-
 from ekgdata import EKGdata
 
 class Test:
@@ -50,12 +47,10 @@ if __name__ == "__main__":
     print("Test-ID:", test.test_id)
     print("Person-ID:", test.person_id)
     print("Datum:", test.date)
-
-    print("\nErste 5 Zeilen der EKG-Daten:")
+    print("Erste 5 Zeilen der EKG-Daten:")
     print(test.ekg_data.df.head())
-
-    print("\nDauer:")
+    print("Dauer:")
     print(test.duration())
 
-    print("\nStatistiken:")
+    print("Statistiken:")
     print(test.basic_stats())
