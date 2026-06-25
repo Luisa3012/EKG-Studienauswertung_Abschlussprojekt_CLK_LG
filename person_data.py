@@ -26,8 +26,5 @@ class PersonData:
 if __name__ == "__main__":
 
     pd = PersonData()
-
-
-
     print(pd.load_by_id(1))
     print(pd.get_test(1, 1))
