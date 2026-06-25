@@ -4,7 +4,9 @@
 	"firstname": "Julian",
 	"lastname": "Huber",
     "picture_path" : "data/pictures/tb.jpg",
-	"gender" : "male",
+	"gender" : "Male",
+	"email"	: "julian.huber@example.com",
+	"status" : "pending",
 	"intervall_tests": {
 		"id": 1,
 		"date": "10.2.2023",
@@ -24,7 +26,9 @@
 	"firstname": "Yannic",
 	"lastname": "Heyer",
     "picture_path" : "data/pictures/js.jpg",
-	"gender" : "male",
+	"gender" : "Male",
+	"email"	: "yannic.heyer@example.com",
+	"status" : "approved",
 	"ekg_tests": [{
 		"id": 3,
 		"date": "10.2.2023",
@@ -35,7 +39,9 @@
 	"date_of_birth": 1973,
 	"firstname": "Yunus",
 	"lastname": "Schmirander",
-	"gender" : "male",
+	"gender" : "Male",
+	"email"	: "yunus.schmirander@example.com",
+	"status" : "rejected",
     "picture_path" : "data/pictures/bl.jpg",
 	"ekg_tests": [{
 		"id": 4,

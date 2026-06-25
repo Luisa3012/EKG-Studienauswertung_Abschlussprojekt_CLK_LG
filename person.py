@@ -4,13 +4,16 @@ from PIL import Image
 
 class Person:
 
-    def __init__(self, id : int, date_of_birth : int, firstname, lastname, picture_path, gender):
+    def __init__(self, id : int, date_of_birth : int, firstname, lastname, picture_path, gender, email, status):
         self.id = id
         self.date_of_birth = date_of_birth
         self.firstname = firstname
         self.lastname = lastname
         self.picture_path = picture_path
         self.gender = gender 
+        self.email = email 
+        self.status = status 
+        
 
 
     def get_full_name(self):
@@ -41,7 +44,7 @@ class Person:
     
 if __name__ == "__main__":
     print("Testing Person class")
-    p = Person(1, 1990, "Julian", "Huber", "data/pictures/tb.jpg", "Male")
+    p = Person(1, 1990, "Julian", "Huber", "data/pictures/tb.jpg", "Male", "julian.huber@example.com", "pending")
     print(p.get_full_name())
     print(p.calc_age())
     img = p.get_image()

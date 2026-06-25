@@ -1,8 +1,6 @@
-import json
 import pandas as pd
 import plotly.express as px
-import person
-import study 
+
 
 class EKGdata:
 
@@ -14,15 +12,8 @@ class EKGdata:
         self.data = ekg_dict["result_link"]
         self.df = pd.read_csv(self.data, sep='\t', header=None, names=['Messwerte in mV','Zeit in ms',])
         self.df = self.df.iloc[:5000]  # Begrenzt auf ersten 5000 Messwerte
+        self.fig = None  # Initialisiert die Figur als None, wird später für Plotly verwendet
 
-    @staticmethod
-    def load_ekg_by_id(study, ekg_id):
-        persons = person.get_person_data()
-        for p in persons:
-            for ekg in p["ekg_tests"]:
-                if ekg["id"] == ekg_id:
-                    return EKGdata(ekg)
-        return None
     
 
     def find_peaks(self, threshold=0.9):
@@ -40,20 +31,23 @@ class EKGdata:
             duration_min = (self.df["Zeit in ms"].max() - self.df["Zeit in ms"].min()) / 60000 # Dauer in Minuten
             return number_peaks/duration_min
     
+    
+    
+    
+    def max_hr(self,threshold=0.9):
+        peak_times = self.find_peaks(threshold)
+        rr_intervals_ms = peak_times.diff()
+        hr_per_beat = 60000 / rr_intervals_ms
+        return hr_per_beat.max()
+    
+    def plot_time_series(self):
+        self.fig = px.line(self.df, x="Zeit in ms", y="Messwerte in mV")
+        return self.fig
 
-    def plot_time_series_with_peaks(self, window_size=200, threshold_factor=1.2):
+    def plot_time_series_with_peaks(self, threshold=0.9):
         self.plot_time_series()
-
-        rolling_mean = self.df["Messwerte in mV"].rolling(window=window_size).mean()
-
-        is_peak = (
-        (self.df["Messwerte in mV"] > self.df["Messwerte in mV"].shift(1)) &
-        (self.df["Messwerte in mV"] >= self.df["Messwerte in mV"].shift(-1)) &
-        (self.df["Messwerte in mV"] > rolling_mean * threshold_factor)
-        )
-
-        peak_times = self.df["Zeit in ms"][is_peak]
-        peak_values = self.df["Messwerte in mV"][is_peak]
+        peak_times = self.find_peaks(threshold)
+        peak_values = self.df["Messwerte in mV"][self.df["Zeit in ms"].isin(peak_times)]
 
         self.fig.add_scatter(
             x=peak_times,
@@ -62,31 +56,16 @@ class EKGdata:
             marker=dict(color='blue', size=8),
             name='Peaks'
         )
+      
+        return self.fig
+    
 
-        return self.fig
-    
-    
-    def max_hr(self,):
-        peak_times = self.find_peaks()
-        rr_intervals_ms = peak_times.diff()
-        hr_per_beat = 60000 / rr_intervals_ms
-        return hr_per_beat.max()
-    
-    def plot_time_series(self):
-        self.fig = px.line(self.df, x="Zeit in ms", y="Messwerte in mV")
-        return self.fig
     
 if __name__ == "__main__":
-    ekg = EKGdata.load_ekg_by_id(study,1)
-    if ekg is None:
-        print("kein EKG gefunden")
-    else:
-        print("EKG laden")
-    peaks=ekg.find_peaks()
+    ekg = EKGdata({"id": 1, "date": "10.2.2023", "result_link": "data/ekg_data/01_Ruhe.txt"})
+    peaks = ekg.find_peaks()
     print("Peaks gefunden:", len(peaks))
-    hr=ekg.estimate_hr()
-    print("Herzfrequenz geschätzt:", hr)
-    max_hr=ekg.max_hr()
-    print("Max HR", max_hr)
-    fig=ekg.plot_time_series_with_peaks()
+    print("Herzfrequenz geschätzt:", ekg.estimate_hr())
+    print("Max HR:", ekg.max_hr())
+    fig = ekg.plot_time_series_with_peaks()
     fig.show()
