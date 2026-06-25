@@ -37,11 +37,11 @@ class Person:
             return (220-age)
     
     def __str__(self):
-        return "{Person: self.get_full_name()}, Geb.{self.date_of_birth}, Alter:{self.calc_age()}"
+        return f"Person: {self.get_full_name()}, Geb.{self.date_of_birth}, Alter:{self.calc_age()}"
     
 if __name__ == "__main__":
     print("Testing Person class")
-    p = Person(1, 1990, "Julian", "Huber", "data/pictures/tb.jpg")
+    p = Person(1, 1990, "Julian", "Huber", "data/pictures/tb.jpg", "Male")
     print(p.get_full_name())
     print(p.calc_age())
     img = p.get_image()

@@ -1,5 +1,5 @@
 from person import Person
-from ekgdata import EKGdata
+from test import Test
 
 class Study:
     def __init__(self):
@@ -36,7 +36,7 @@ class Study:
     def get_total_tests(self):
         return len(self.tests)
     
-    def get_average_hr_all_tests(selfs):
+    def get_average_hr_all_tests(self):
         all_values = []
         for test in self.tests:
             all_values.extend(test.ekg_data)
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     from person import Person
     from test import Test
     study = Study()
-    p1 = Person(1, 1990, "Julian", "Huber", "data/pictures/tb.jpg")
+    p1 = Person(1, 1990, "Julian", "Huber", "data/pictures/tb.jpg", "Male")
     t1 = Test(1, 1, "2026-01-01", [70, 72, 75, 73, 71])
     study.add_person(p1)
     print (study.get_total_persons())
@@ -60,5 +60,4 @@ if __name__ == "__main__":
 
     person_tests = study.get_test_by_person(1)
     print (len(person_tests))
-
     

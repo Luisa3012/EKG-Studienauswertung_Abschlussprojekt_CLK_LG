@@ -2,28 +2,27 @@ import json
 import pandas as pd
 import plotly.express as px
 import person
+import study 
 
 class EKGdata:
 
 ## Konstruktor der Klasse soll die Daten einlesen
 
     def __init__(self, ekg_dict):
-        #pass
         self.id = ekg_dict["id"]
         self.date = ekg_dict["date"]
         self.data = ekg_dict["result_link"]
         self.df = pd.read_csv(self.data, sep='\t', header=None, names=['Messwerte in mV','Zeit in ms',])
-        self.df = self.df.iloc[:5000]  # Entferne die erste Zeile, da sie nur die Spaltennamen enthält
+        self.df = self.df.iloc[:5000]  # Begrenzt auf ersten 5000 Messwerte
 
-
-
-    def load_by_id(self, id):
+    @staticmethod
+    def load_ekg_by_id(study, ekg_id):
         persons = person.get_person_data()
-        for person in persons:
-            for ekg in person.ekg_tests:
-                if ekg["id"] == id:
+        for p in persons:
+            for ekg in p["ekg_tests"]:
+                if ekg["id"] == ekg_id:
                     return EKGdata(ekg)
-        return None 
+        return None
     
 
     def find_peaks(self, threshold=0.9):
@@ -76,3 +75,18 @@ class EKGdata:
     def plot_time_series(self):
         self.fig = px.line(self.df, x="Zeit in ms", y="Messwerte in mV")
         return self.fig
+    
+if __name__ == "__main__":
+    ekg = EKGdata.load_ekg_by_id(1)
+    if ekg is None:
+        print("kein EKG gefunden")
+    else:
+        print("EKG laden")
+    peaks=ekg.find_peaks()
+    print("Peaks gefunden:", len(peaks))
+    hr=ekg.estimate_hr()
+    print("Herzfrequenz geschätzt:", hr)
+    max_hr=ekg.max_hr()
+    print("Max HR", max_hr)
+    fig=ekg.plot_time_series_with_peaks()
+    fig.show()
