@@ -77,7 +77,7 @@ class EKGdata:
         return self.fig
     
 if __name__ == "__main__":
-    ekg = EKGdata.load_ekg_by_id(1)
+    ekg = EKGdata.load_ekg_by_id(study,1)
     if ekg is None:
         print("kein EKG gefunden")
     else:
