@@ -5,29 +5,32 @@ class User:
         self.role = role
         self.person_id = person_id
 
+
 class Login:
-    def __init__(self):
-        self.users = [
-            User("proband1", "1234", "proband", person_id=1),
-            User("leiter", "abcd", "leiter")
-        ]
+    def __init__(self, db):
+        self.db = db
 
     def login(self, username, password):
-        for user in self.users:
-            if user.username == username and user.password == password:
-                return user
-        return None
-    
+        return self.db.get_user_by_credentials(username, password)
 
-if __name__ == "__main__":
-    login = Login()
-    user = login.login("proband1", "1234")
+    def register(self, firstname, lastname, date_of_birth, email, gender,
+                 weight, fitness_level, username, password):
+        """
+        Legt eine neue Person (Status 'pending') und einen User-Account an.
+        Gibt die neue Person zurück oder None wenn der Benutzername bereits existiert.
+        """
+        if self.db.username_exists(username):
+            return None
 
-    if user is None:
-        print("Login fehlgeschlagen")
-    else:
-        print("Login erfolgreich!")
-        if user.role == "leiter":
-            print("Zugriff: Alle Daten anzeigen")
-        elif user.role == "proband":
-            print("Zugriff: nur eigene Daten, person_id =", user.person_id)
+        person_id = self.db.add_person(
+            firstname=firstname,
+            lastname=lastname,
+            date_of_birth=date_of_birth,
+            email=email,
+            gender=gender,
+            weight=weight,
+            fitness_level=fitness_level,
+            status="pending",
+        )
+        self.db.add_user(username, password, "proband", person_id)
+        return self.db.get_person_by_id(person_id)
