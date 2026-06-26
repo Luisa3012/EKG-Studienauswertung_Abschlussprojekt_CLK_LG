@@ -98,117 +98,159 @@ def _tab_tests(study, db, person):
 # ----------------------------------------------------------------- Tab 3
 
 def _tab_analyse(study, db, person):
+    """Interaktive Analyse der eigenen EKG-Daten."""
     st.header("Meine EKG-Analyse")
 
     tests = study.get_tests_by_person(person.id)
     if not tests:
-        st.info("Noch keine Tests für die Analyse vorhanden.")
+        st.info("Noch keine Tests vorhanden. Bitte wende dich an die Studienleitung.")
         return
 
-    test_options = {t.test_id: f"Test {t.test_id} – {t.date}" for t in tests}
+    # ── Test auswählen ─────────────────────────────────────────────────────
+    test_options = {t.test_id: f"Aufnahme vom {t.date}  (Test-ID {t.test_id})" for t in tests}
     selected_tid = st.selectbox(
-        "Test auswählen",
+        "Welchen Test möchtest du auswerten?",
         options=list(test_options.keys()),
         format_func=lambda x: test_options[x],
         key="proband_ana_test",
     )
     test = study.get_test_by_id(selected_tid)
 
-    with st.spinner("EKG-Daten werden geladen..."):
+    with st.spinner("EKG-Daten werden geladen …"):
         ekg = test.load_ekg_data()
 
     if ekg is None:
-        st.error("EKG-Daten konnten nicht geladen werden.")
+        st.error("Die EKG-Daten konnten nicht geladen werden.")
         return
 
-    avg_hr = test.avg_hr()
-    max_hr_val = test.max_hr()
     max_hr_limit = person.calc_max_heart_rate()
 
-    dur_min = test.duration_min()
+    # ── Test-Steckbrief ────────────────────────────────────────────────────
+    avg_hr     = test.avg_hr()
+    max_hr_val = test.max_hr()
+    dur_min    = test.duration_min()
+
+    st.markdown(f"### Auswertung — Aufnahme vom **{test.date}**")
+
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Ø Herzfrequenz", f"{avg_hr:.1f} bpm" if avg_hr else "–")
-    col2.metric("Max. Herzfrequenz", f"{max_hr_val:.1f} bpm" if max_hr_val else "–")
-    col3.metric("Ihr HR-Grenzwert", f"{max_hr_limit:.0f} bpm")
-    col4.metric("Aufnahmedauer", f"{dur_min:.2f} min" if dur_min else "–")
+    col1.metric("Aufnahmedauer",      f"{dur_min:.2f} min"    if dur_min     else "–",
+                help="Wie lange die Aufnahme insgesamt dauerte")
+    col2.metric("Ø Herzfrequenz",     f"{avg_hr:.1f} bpm"     if avg_hr      else "–",
+                help="Dein durchschnittlicher Herzschlag über die gesamte Aufnahme")
+    col3.metric("Max. Herzfrequenz",  f"{max_hr_val:.1f} bpm" if max_hr_val  else "–",
+                help="Dein höchstes gemessenes Herzschlagtempo")
+    col4.metric("Dein HR-Grenzwert",  f"{max_hr_limit:.0f} bpm",
+                help="Dein individueller Maximalwert (berechnet aus Alter & Geschlecht)")
 
     st.divider()
 
-    # --- Zeitbereich-Slider ---
-    t_min_s, t_max_s = ekg.get_time_range_s()
-    st.subheader("Interaktiver Plot — Zeitbereich wählen")
+    # ── Zeitbereich-Slider ─────────────────────────────────────────────────
+    st.subheader("Schritt 1 — Zeitbereich wählen")
+    st.caption(
+        "Schiebe die Regler, um einen bestimmten Abschnitt deiner Aufnahme zu vergrößern. "
+        "Beide Diagramme passen sich sofort an."
+    )
 
+    t_min_s, t_max_s = ekg.get_time_range_s()
     if t_max_s > t_min_s:
         time_range = st.slider(
             "Zeitfenster (Sekunden)",
-            min_value=t_min_s,
-            max_value=t_max_s,
-            value=(t_min_s, t_max_s),
-            step=1,
+            min_value=t_min_s, max_value=t_max_s,
+            value=(t_min_s, t_max_s), step=1,
             key="sl_ana_proband",
-            help="Verschieben Sie die Regler, um einen bestimmten Bereich zu vergrößern.",
         )
-        start_ms = time_range[0] * 1000
-        end_ms = time_range[1] * 1000
+        start_ms, end_ms = time_range[0] * 1000, time_range[1] * 1000
     else:
-        start_ms = t_min_s * 1000
-        end_ms = t_max_s * 1000
+        start_ms, end_ms = t_min_s * 1000, t_max_s * 1000
 
-    # Fenster-Statistik
+    # Kennzahlen für das Fenster
     ws = ekg.window_stats(start_ms, end_ms)
     if ws:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Dauer (Auswahl)", f"{ws['dauer_s']/60:.2f} min")
-        c2.metric("Ø HR", f"{ws['avg_hr']:.1f} bpm" if ws.get("avg_hr") else "–")
-        c3.metric("Max HR", f"{ws['max_hr']:.1f} bpm" if ws.get("max_hr") else "–")
-        c4.metric("HRV (SDNN)", f"{ws['hrv_sdnn']:.1f} ms" if ws.get("hrv_sdnn") else "–")
+        with st.container(border=True):
+            st.caption("Kennzahlen für den gewählten Abschnitt")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Dauer",      f"{ws['dauer_s']/60:.2f} min")
+            c2.metric("Ø HR",       f"{ws['avg_hr']:.1f} bpm"   if ws.get("avg_hr")    else "–")
+            c3.metric("Max HR",     f"{ws['max_hr']:.1f} bpm"   if ws.get("max_hr")    else "–")
+            c4.metric("HRV (SDNN)", f"{ws['hrv_sdnn']:.1f} ms" if ws.get("hrv_sdnn") else "–",
+                      help="Herzratenvariabilität — ein Maß für die Anpassungsfähigkeit deines Herzens. "
+                           "Höhere Werte sind in der Regel ein gutes Zeichen.")
 
-    # Kombinierter Plot
-    fig = ekg.plot_combined(start_ms, end_ms, max_hr_line=max_hr_limit)
-    st.plotly_chart(fig, use_container_width=True)
+    st.divider()
 
-    # Anomalie-Hinweise
+    # ── Kombinierter Plot ──────────────────────────────────────────────────
+    st.subheader("Schritt 2 — Dein EKG & Herzfrequenz")
+
+    with st.container(border=True):
+        st.markdown(
+            "**Oberes Diagramm — EKG-Signal (mV)**  \n"
+            "Zeigt deine elektrische Herzaktivität. "
+            "Jeder **rote Punkt** ist ein erkannter Herzschlag (R-Peak)."
+        )
+        st.markdown(
+            "**Unteres Diagramm — Herzfrequenz (bpm)**  \n"
+            "Die **grüne Linie** zeigt, wie schnell dein Herz schlägt.  "
+            "Die **orangene Linie** ist ein gleitender Durchschnitt — sie zeigt den Gesamttrend.  "
+            "Die **rote gestrichelte Linie** ist dein persönlicher Maximalwert."
+        )
+        fig = ekg.plot_combined(start_ms, end_ms, max_hr_line=max_hr_limit)
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(
+            "Tipp: Du kannst im Diagramm mit der Maus in einen Bereich hineinzoomen "
+            "oder auf Legendeneinträge klicken, um einzelne Kurven zu zeigen/verstecken."
+        )
+
+    # ── Gesundheitshinweise ────────────────────────────────────────────────
     anomalies = ekg.detect_anomalies(person)
+    st.divider()
+    st.subheader("Schritt 3 — Gesundheitshinweise")
+
     if anomalies:
-        st.subheader("Wichtige Hinweise")
         for a in anomalies:
             st.warning(
-                f"**{a['typ']}** (Messwert: {a['wert']}, Grenzwert: {a['grenzwert']} bpm)\n\n"
+                f"**{a['typ']}**  \n"
+                f"Gemessener Wert: **{a['wert']}**  |  Dein Grenzwert: {a['grenzwert']} bpm  \n\n"
                 f"{a['empfehlung']}"
             )
-        st.info(
-            "Bei gesundheitlichen Beschwerden oder Fragen zu diesen Hinweisen:\n\n"
-            "Notruf: **112**  |  Kassenärztlicher Bereitschaftsdienst: **116 117**\n\n"
-            "Bitte wenden Sie sich auch an Ihre Studienleitung."
+        st.error(
+            "**Bitte beachte diese Hinweise und sprich mit deiner Ärztin oder deinem Arzt.**\n\n"
+            "Notfall: **112** &nbsp;&nbsp;|&nbsp;&nbsp; "
+            "Kassenärztlicher Bereitschaftsdienst: **116 117**\n\n"
+            "Du kannst auch jederzeit die Studienleitung kontaktieren."
         )
     else:
-        st.success("Keine Auffälligkeiten in diesem Test festgestellt.")
+        st.success(
+            "Alles im grünen Bereich! Keine Auffälligkeiten in dieser Aufnahme festgestellt."
+        )
 
-    # Trendvergleich
+    # ── Trendvergleich ─────────────────────────────────────────────────────
     if len(tests) >= 2:
         st.divider()
-        st.subheader("Trendvergleich")
+        st.subheader("Test-Vergleich — Wie hat sich dein Herz verändert?")
+        st.caption(
+            "Wähle eine zweite Aufnahme, um beide direkt nebeneinander zu vergleichen. "
+            "Der Schieberegler steuert beide Diagramme gleichzeitig."
+        )
 
-        compare_options = {t.test_id: f"Test {t.test_id} – {t.date}" for t in tests if t.test_id != selected_tid}
+        compare_options = {t.test_id: f"Aufnahme vom {t.date}  (Test-ID {t.test_id})"
+                           for t in tests if t.test_id != selected_tid}
         compare_tid = st.selectbox(
-            "Vergleichs-Test auswählen",
+            "Vergleichs-Aufnahme auswählen",
             options=list(compare_options.keys()),
             format_func=lambda x: compare_options[x],
             key="proband_compare_test",
         )
         test2 = study.get_test_by_id(compare_tid)
-        with st.spinner("Vergleichs-EKG wird geladen..."):
+        with st.spinner("Vergleichs-EKG wird geladen …"):
             ekg2 = test2.load_ekg_data()
 
         if ekg2:
             t2_min_s, t2_max_s = ekg2.get_time_range_s()
             common_max = min(t_max_s - t_min_s, t2_max_s - t2_min_s)
             compare_range = st.slider(
-                "Vergleichs-Zeitfenster (Sekunden)",
-                min_value=0,
-                max_value=common_max,
-                value=(0, common_max),
-                step=1,
+                "Gemeinsames Zeitfenster für beide Aufnahmen (Sekunden)",
+                min_value=0, max_value=common_max,
+                value=(0, common_max), step=1,
                 key="sl_compare_proband",
             )
             s1_ms = (t_min_s + compare_range[0]) * 1000
@@ -218,19 +260,29 @@ def _tab_analyse(study, db, person):
 
             col_a, col_b = st.columns(2)
             with col_a:
-                st.markdown(f"**Test {selected_tid} – {test.date}**")
-                st.plotly_chart(ekg.plot_combined(s1_ms, e1_ms, max_hr_line=max_hr_limit), use_container_width=True)
+                with st.container(border=True):
+                    st.markdown(f"**Aufnahme vom {test.date}**")
+                    st.plotly_chart(
+                        ekg.plot_combined(s1_ms, e1_ms, max_hr_line=max_hr_limit),
+                        use_container_width=True,
+                    )
             with col_b:
-                st.markdown(f"**Test {compare_tid} – {test2.date}**")
-                st.plotly_chart(ekg2.plot_combined(s2_ms, e2_ms, max_hr_line=max_hr_limit), use_container_width=True)
+                with st.container(border=True):
+                    st.markdown(f"**Aufnahme vom {test2.date}**")
+                    st.plotly_chart(
+                        ekg2.plot_combined(s2_ms, e2_ms, max_hr_line=max_hr_limit),
+                        use_container_width=True,
+                    )
 
+            st.markdown("**Vergleich der Kennzahlen**")
             trend_rows = []
-            for t_obj, lbl in [(test, f"Test {selected_tid}"), (test2, f"Test {compare_tid}")]:
+            for t_obj, lbl in [(test,  f"Aufnahme {test.date}"),
+                                (test2, f"Aufnahme {test2.date}")]:
                 trend_rows.append({
-                    "Test": lbl,
-                    "Datum": t_obj.date,
-                    "Ø HR (bpm)": f"{t_obj.avg_hr():.1f}" if t_obj.avg_hr() else "–",
-                    "Max HR (bpm)": f"{t_obj.max_hr():.1f}" if t_obj.max_hr() else "–",
+                    "Aufnahme":     lbl,
+                    "Dauer (min)":  f"{t_obj.duration_min():.2f}" if t_obj.duration_min() else "–",
+                    "Ø HR (bpm)":   f"{t_obj.avg_hr():.1f}"       if t_obj.avg_hr()        else "–",
+                    "Max HR (bpm)": f"{t_obj.max_hr():.1f}"       if t_obj.max_hr()        else "–",
                 })
             st.dataframe(pd.DataFrame(trend_rows), use_container_width=True, hide_index=True)
 
