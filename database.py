@@ -245,6 +245,22 @@ class DatabaseManager:
         conn.commit()
         conn.close()
 
+    def delete_person(self, person_id):
+        """Löscht eine Person samt allen Tests und User-Account."""
+        conn = self._get_conn()
+        conn.execute("DELETE FROM tests WHERE person_id = ?", (person_id,))
+        conn.execute("DELETE FROM users WHERE person_id = ?", (person_id,))
+        conn.execute("DELETE FROM persons WHERE id = ?", (person_id,))
+        conn.commit()
+        conn.close()
+
+    def delete_test(self, test_id):
+        """Löscht einen einzelnen Test."""
+        conn = self._get_conn()
+        conn.execute("DELETE FROM tests WHERE id = ?", (test_id,))
+        conn.commit()
+        conn.close()
+
     # ------------------------------------------------------------------ Tests
 
     def _row_to_test(self, row):

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 90">
+  <!-- Hintergrund -->
+  <rect width="280" height="90" rx="14" fill="#0f172a"/>
+
+  <!-- Gitternetz (subtil) -->
+  <line x1="12" y1="22" x2="128" y2="22" stroke="#1e293b" stroke-width="1"/>
+  <line x1="12" y1="45" x2="128" y2="45" stroke="#1e293b" stroke-width="1"/>
+  <line x1="12" y1="68" x2="128" y2="68" stroke="#1e293b" stroke-width="1"/>
+  <line x1="32" y1="10" x2="32" y2="80" stroke="#1e293b" stroke-width="1"/>
+  <line x1="58" y1="10" x2="58" y2="80" stroke="#1e293b" stroke-width="1"/>
+  <line x1="84" y1="10" x2="84" y2="80" stroke="#1e293b" stroke-width="1"/>
+  <line x1="110" y1="10" x2="110" y2="80" stroke="#1e293b" stroke-width="1"/>
+
+  <!-- EKG-Signal: PQRST-Komplex, Baseline bei y=45 -->
+  <polyline
+    points="12,45 26,45 31,37 36,45 46,45 48,50 52,8 56,72 60,45 72,45 78,34 84,45 100,45 120,45 128,45"
+    fill="none" stroke="#22c55e" stroke-width="3"
+    stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Ausblenden des Endes -->
+  <line x1="128" y1="45" x2="140" y2="45" stroke="#22c55e" stroke-width="2.5"
+        stroke-linecap="round" opacity="0.25"/>
+
+  <!-- Trennlinie -->
+  <line x1="150" y1="16" x2="150" y2="74" stroke="#334155" stroke-width="1.5"/>
+
+  <!-- Herzschlag-Puls-Icon (kleines Herz) -->
+  <path d="M158,24 C158,21 161,19 164,22 C167,19 170,21 170,24 C170,28 164,32 164,32 C164,32 158,28 158,24 Z"
+        fill="#ef4444" opacity="0.85"/>
+
+  <!-- Haupt-Titel -->
+  <text x="162" y="52" font-family="Segoe UI, Arial, sans-serif"
+        font-size="26" font-weight="800" fill="#f1f5f9">EKG</text>
+
+  <!-- Untertitel -->
+  <text x="162" y="68" font-family="Segoe UI, Arial, sans-serif"
+        font-size="11" fill="#64748b" letter-spacing="2.5">STUDIENAPP</text>
+</svg>

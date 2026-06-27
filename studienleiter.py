@@ -2,6 +2,36 @@ import streamlit as st
 import pandas as pd
 
 
+@st.cache_data(show_spinner=False)
+def _load_ekg_cached(result_link: str, test_id: int):
+    """Cached: EKG-Datei einmalig laden und als DataFrame zurückgeben."""
+    from ekgdata import EKGdata
+    try:
+        return EKGdata({"id": test_id, "date": "", "result_link": result_link})
+    except Exception:
+        return None
+
+
+@st.cache_data(show_spinner=False)
+def _anomalie_count(result_link: str, date_of_birth: int, gender: str) -> int:
+    """Cached: Anomalien für eine EKG-Datei + Personenprofil zählen.
+
+    Wird nur beim ersten Aufruf berechnet; danach aus dem Cache gelesen.
+    Cache wird automatisch invalidiert wenn sich result_link, Geburtsjahr
+    oder Geschlecht ändern.
+    """
+    from ekgdata import EKGdata
+    from person import Person
+    try:
+        ekg = EKGdata({"id": 0, "date": "", "result_link": result_link})
+        if ekg.df is None:
+            return 0
+        p = Person(0, date_of_birth, "", "", "", gender or "Divers", "", "approved")
+        return len(ekg.detect_anomalies(p))
+    except Exception:
+        return 0
+
+
 def render_studienleiter(study, db):
     st.title("Studienleiter-Portal")
 
@@ -42,13 +72,19 @@ def _tab_uebersicht(study, db):
     st.subheader("Alle Probanden")
     rows = []
     for p in study.get_all_persons():
+        tests = study.get_tests_by_person(p.id)
+        anomalie_count = sum(
+            _anomalie_count(t.result_link, p.date_of_birth, p.gender)
+            for t in tests if t.result_link
+        )
         rows.append({
             "ID": p.id,
             "Name": p.get_full_name(),
             "Alter": p.calc_age(),
             "Geschlecht": p.gender or "–",
             "Status": p.status,
-            "Tests": len(study.get_tests_by_person(p.id)),
+            "Tests": len(tests),
+            "Anomalien": f"⚠️ {anomalie_count}" if anomalie_count else "✅ Keine",
         })
     if rows:
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
@@ -86,16 +122,11 @@ def _tab_registrierungen(study, db):
             with col_act:
                 if st.button("Annehmen", key=f"approve_{p.id}", type="primary"):
                     db.approve_person(p.id)
-                    username_candidate = f"proband_{p.id}"
-                    if not db.username_exists(username_candidate):
-                        db.add_user(username_candidate, "changeme", "proband", p.id)
-                        st.success(
-                            f"{p.get_full_name()} angenommen. "
-                            f"Login: **{username_candidate}** / Passwort: **changeme**"
-                        )
-                    else:
-                        st.success(f"{p.get_full_name()} angenommen.")
                     study.load_from_db(db)
+                    st.success(
+                        f"**{p.get_full_name()}** wurde angenommen und kann sich ab sofort "
+                        f"mit den bei der Registrierung gewählten Zugangsdaten einloggen."
+                    )
                     st.rerun()
 
                 if st.button("Ablehnen", key=f"reject_{p.id}"):
@@ -111,18 +142,88 @@ def _tab_probandenverwaltung(study, db):
     """Tab zur Anzeige und Bearbeitung aller Probanden-Attribute inkl. Bild."""
     st.header("Probandenverwaltung")
 
+    # ── Neuen Probanden manuell anlegen ───────────────────────────────────
+    with st.expander("Neuen Probanden manuell anlegen", icon="➕"):
+        st.caption(
+            "Hier kannst du einen Probanden direkt anlegen (ohne Registrierungsanfrage). "
+            "Der Account ist sofort aktiv."
+        )
+        with st.form("add_proband_form"):
+            col_a, col_b = st.columns(2)
+            add_first  = col_a.text_input("Vorname *")
+            add_last   = col_b.text_input("Nachname *")
+
+            add_email  = st.text_input("E-Mail-Adresse *")
+
+            col_c, col_d = st.columns(2)
+            add_dob    = col_c.number_input("Geburtsjahr *", min_value=1900, max_value=2015, value=1990, step=1)
+            add_gender = col_d.selectbox("Geschlecht *", ["Male", "Female", "Divers"])
+
+            col_e, col_f = st.columns(2)
+            add_weight  = col_e.number_input("Körpergewicht (kg)", min_value=20.0, max_value=300.0, value=70.0, step=0.5)
+            add_fitness = col_f.selectbox("Sportlicher Zustand", ["aktiv", "gelegentlich", "inaktiv"])
+
+            st.markdown("**Login-Daten für den Probanden**")
+            col_g, col_h = st.columns(2)
+            add_username = col_g.text_input("Benutzername *")
+            add_password = col_h.text_input("Passwort *", type="password")
+
+            add_submitted = st.form_submit_button("Probanden anlegen", type="primary")
+
+        if add_submitted:
+            errors = []
+            if not add_first.strip():   errors.append("Vorname fehlt.")
+            if not add_last.strip():    errors.append("Nachname fehlt.")
+            if not add_email.strip():   errors.append("E-Mail fehlt.")
+            if not add_username.strip(): errors.append("Benutzername fehlt.")
+            if not add_password.strip(): errors.append("Passwort fehlt.")
+            if db.username_exists(add_username.strip()):
+                errors.append(f"Benutzername '{add_username.strip()}' ist bereits vergeben.")
+
+            if errors:
+                for e in errors:
+                    st.error(e)
+            else:
+                new_pid = db.add_person(
+                    firstname=add_first.strip(),
+                    lastname=add_last.strip(),
+                    date_of_birth=int(add_dob),
+                    email=add_email.strip(),
+                    gender=add_gender,
+                    weight=float(add_weight),
+                    fitness_level=add_fitness,
+                    status="approved",
+                )
+                db.add_user(add_username.strip(), add_password.strip(), "proband", new_pid)
+                study.load_from_db(db)
+                st.success(
+                    f"Proband **{add_first.strip()} {add_last.strip()}** angelegt. "
+                    f"Login: `{add_username.strip()}` / `{add_password.strip()}`"
+                )
+                st.rerun()
+
+    st.divider()
+
     persons = study.get_all_persons()
     if not persons:
         st.info("Keine Probanden vorhanden.")
         return
 
-    show_inactive = st.checkbox("Abgelehnte Probanden anzeigen", value=False)
-    visible = [p for p in persons if show_inactive or p.status != "rejected"]
+    col_f1, col_f2 = st.columns(2)
+    show_pending  = col_f1.toggle("Ausstehende anzeigen", value=False)
+    show_rejected = col_f2.toggle("Abgelehnte anzeigen",  value=False)
+
+    visible = [
+        p for p in persons
+        if p.status == "approved"
+        or (show_pending  and p.status == "pending")
+        or (show_rejected and p.status == "rejected")
+    ]
     if not visible:
         st.info("Keine Probanden gefunden.")
         return
 
-    namen = {p.id: f"{p.get_full_name()} (ID {p.id})" for p in visible}
+    namen = {p.id: f"{p.get_full_name()}  [{p.status}]" for p in visible}
     selected_id = st.selectbox(
         "Proband auswählen",
         options=list(namen.keys()),
@@ -145,63 +246,51 @@ def _tab_probandenverwaltung(study, db):
         st.write(f"**Status:** {person.status}  |  **Max HR:** {person.calc_max_heart_rate():.0f} bpm")
 
     st.divider()
-    st.subheader("Daten bearbeiten")
-
-    gender_options = ["Male", "Female", "Divers"]
-    fitness_options = ["aktiv", "gelegentlich", "inaktiv"]
+    st.subheader("Nachname bearbeiten")
+    st.caption("Als Studienleiter kannst du nur den Nachnamen des Probanden ändern (z.B. nach Heirat).")
 
     with st.form("edit_person_form"):
-        col1, col2 = st.columns(2)
-        new_first = col1.text_input("Vorname", value=person.firstname or "")
-        new_last  = col2.text_input("Nachname", value=person.lastname or "")
-
-        col3, col4 = st.columns(2)
-        new_dob = col3.number_input(
-            "Geburtsjahr", min_value=1900, max_value=2020,
-            value=int(person.date_of_birth) if person.date_of_birth else 1990,
-            step=1,
-        )
-        gender_idx = gender_options.index(person.gender) if person.gender in gender_options else 0
-        new_gender = col4.selectbox("Geschlecht", gender_options, index=gender_idx)
-
-        new_email = st.text_input("E-Mail", value=person.email or "")
-
-        col5, col6 = st.columns(2)
-        new_weight = col5.number_input(
-            "Körpergewicht (kg)", min_value=20.0, max_value=300.0,
-            value=float(person.weight) if person.weight else 70.0,
-            step=0.5,
-        )
-        fit_idx = fitness_options.index(person.fitness_level) if person.fitness_level in fitness_options else 0
-        new_fitness = col6.selectbox("Sportlicher Zustand", fitness_options, index=fit_idx)
-
-        new_pic = st.file_uploader("Profilbild ändern (optional)", type=["jpg", "jpeg", "png"])
-
-        submitted = st.form_submit_button("Änderungen speichern", type="primary")
+        new_last = st.text_input("Nachname", value=person.lastname or "")
+        submitted = st.form_submit_button("Nachname speichern", type="primary")
 
     if submitted:
-        import os
-        pic_path = None
-        if new_pic is not None:
-            os.makedirs("data/pictures", exist_ok=True)
-            pic_path = f"data/pictures/person_{selected_id}_{new_pic.name}"
-            with open(pic_path, "wb") as f:
-                f.write(new_pic.getbuffer())
-
         db.update_person(
             person_id=selected_id,
-            firstname=new_first.strip(),
+            firstname=person.firstname,
             lastname=new_last.strip(),
-            date_of_birth=int(new_dob),
-            email=new_email.strip(),
-            gender=new_gender,
-            weight=float(new_weight),
-            fitness_level=new_fitness,
-            picture_path=pic_path,
+            date_of_birth=person.date_of_birth,
+            email=person.email,
+            gender=person.gender,
+            weight=person.weight,
+            fitness_level=person.fitness_level,
         )
         study.load_from_db(db)
-        st.success("Änderungen gespeichert.")
+        st.success("Nachname gespeichert.")
         st.rerun()
+
+    # ── Proband löschen ────────────────────────────────────────────────────
+    st.divider()
+    with st.expander("Proband löschen", icon="🗑️"):
+        st.warning(
+            f"**{person.get_full_name()}** und alle zugehörigen Tests und Login-Daten "
+            "werden unwiderruflich gelöscht."
+        )
+        confirm_key = f"confirm_delete_person_{selected_id}"
+        if st.session_state.get(confirm_key):
+            col_yes, col_no = st.columns(2)
+            if col_yes.button("Ja, endgültig löschen", type="primary", key=f"del_yes_{selected_id}"):
+                db.delete_person(selected_id)
+                study.load_from_db(db)
+                st.session_state.pop(confirm_key, None)
+                st.success("Proband gelöscht.")
+                st.rerun()
+            if col_no.button("Abbrechen", key=f"del_no_{selected_id}"):
+                st.session_state.pop(confirm_key, None)
+                st.rerun()
+        else:
+            if st.button("Proband löschen", key=f"del_person_{selected_id}"):
+                st.session_state[confirm_key] = True
+                st.rerun()
 
 
 # ----------------------------------------------------------------- Tab 4
@@ -243,14 +332,27 @@ def _tab_testverwaltung(study, db):
     st.subheader("Vorhandene Tests")
     tests = study.get_tests_by_person(selected_id)
     if tests:
-        rows = []
         for t in tests:
-            rows.append({
-                "Test-ID": t.test_id,
-                "Datum": t.date,
-                "Datei": t.result_link,
-            })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            with st.container(border=True):
+                col_info, col_del = st.columns([5, 1])
+                with col_info:
+                    st.markdown(f"**Test {t.test_id}** — {t.date}")
+                    st.caption(f"Datei: {t.result_link}")
+                with col_del:
+                    confirm_key = f"confirm_del_test_{t.test_id}"
+                    if st.session_state.get(confirm_key):
+                        if st.button("Löschen bestätigen", key=f"del_test_yes_{t.test_id}", type="primary"):
+                            db.delete_test(t.test_id)
+                            study.load_from_db(db)
+                            st.session_state.pop(confirm_key, None)
+                            st.rerun()
+                        if st.button("Abbrechen", key=f"del_test_no_{t.test_id}"):
+                            st.session_state.pop(confirm_key, None)
+                            st.rerun()
+                    else:
+                        if st.button("🗑️", key=f"del_test_{t.test_id}", help="Test löschen"):
+                            st.session_state[confirm_key] = True
+                            st.rerun()
     else:
         st.info("Noch keine Tests vorhanden.")
 
@@ -294,7 +396,7 @@ def _tab_analyse(study, db):
     test = study.get_test_by_id(selected_tid)
 
     with st.spinner("EKG-Daten werden geladen …"):
-        ekg = test.load_ekg_data()
+        ekg = _load_ekg_cached(test.result_link, test.test_id)
     if ekg is None:
         st.error("EKG-Daten konnten nicht geladen werden.")
         return
@@ -376,7 +478,7 @@ def _tab_analyse(study, db):
             "**Rote gestrichelte Linie**: individueller Max-HR-Grenzwert."
         )
         fig = ekg.plot_combined(start_ms, end_ms, max_hr_line=max_hr_limit)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key=f"leiter_main_plot_{selected_tid}")
         st.caption(
             "Tipp: Im Diagramm kannst du mit der Maus in einen Bereich hineinzoomen "
             "oder die Legende anklicken, um einzelne Kurven ein-/auszublenden."
@@ -436,7 +538,7 @@ def _tab_analyse(study, db):
     )
     test2 = study.get_test_by_id(compare_tid)
     with st.spinner("Vergleichs-EKG wird geladen …"):
-        ekg2 = test2.load_ekg_data()
+        ekg2 = _load_ekg_cached(test2.result_link, test2.test_id)
 
     if ekg2:
         t2_min_s, t2_max_s = ekg2.get_time_range_s()
@@ -459,6 +561,7 @@ def _tab_analyse(study, db):
                 st.plotly_chart(
                     ekg.plot_combined(s1_ms, e1_ms, max_hr_line=max_hr_limit),
                     use_container_width=True,
+                    key=f"leiter_compare_a_{selected_tid}_{compare_tid}",
                 )
         with col_b:
             with st.container(border=True):
@@ -466,6 +569,7 @@ def _tab_analyse(study, db):
                 st.plotly_chart(
                     ekg2.plot_combined(s2_ms, e2_ms, max_hr_line=max_hr_limit),
                     use_container_width=True,
+                    key=f"leiter_compare_b_{selected_tid}_{compare_tid}",
                 )
 
         st.markdown("**Direktvergleich der Kennzahlen**")
@@ -479,6 +583,34 @@ def _tab_analyse(study, db):
                 "Max HR (bpm)": f"{t_obj.max_hr():.1f}"       if t_obj.max_hr()        else "–",
             })
         st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
+
+        # ── Automatische Zusammenfassung ──────────────────────────────────
+        hr1, hr2 = test.avg_hr(), test2.avg_hr()
+        mhr1, mhr2 = test.max_hr(), test2.max_hr()
+        if hr1 and hr2:
+            diff = hr2 - hr1
+            diff_str = f"{'gestiegen (+' if diff > 0 else 'gesunken ('}{abs(diff):.1f} bpm)"
+            if abs(diff) < 5:
+                bewertung = "Die durchschnittliche Herzfrequenz ist nahezu unverändert — die kardiovaskuläre Belastung war in beiden Aufnahmen vergleichbar."
+            elif diff < 0:
+                bewertung = "Die Herzfrequenz ist gesunken — dies kann auf einen Trainingsfortschritt, bessere Erholung oder geringere Belastung hinweisen."
+            else:
+                bewertung = "Die Herzfrequenz ist gestiegen — mögliche Ursachen sind höhere Belastung, Stress, Erkrankung oder unzureichende Erholung."
+
+            with st.container(border=True):
+                st.markdown("**Auswertung des Vergleichs**")
+                st.write(
+                    f"Zwischen Test {selected_tid} ({test.date}) und Test {compare_tid} ({test2.date}) "
+                    f"hat sich die durchschnittliche Herzfrequenz von **{hr1:.1f} bpm** auf "
+                    f"**{hr2:.1f} bpm** {diff_str}). {bewertung}"
+                )
+                if mhr1 and mhr2:
+                    mdiff = mhr2 - mhr1
+                    mdir = "höher" if mdiff > 0 else "niedriger"
+                    st.write(
+                        f"Die maximale Herzfrequenz war im zweiten Test "
+                        f"**{abs(mdiff):.1f} bpm {mdir}** ({mhr1:.1f} → {mhr2:.1f} bpm)."
+                    )
 
 
 # ----------------------------------------------------------------- Tab 6

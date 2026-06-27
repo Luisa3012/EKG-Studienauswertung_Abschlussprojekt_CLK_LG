@@ -44,8 +44,8 @@ login: Login = st.session_state.login
 # ---------------------------------------------------------------------------
 
 def render_sidebar():
-    st.sidebar.image("data/pictures/none.jpg", width=60)
-    st.sidebar.title("EKG-Studienauswertung")
+    st.sidebar.image("data/pictures/ekg_logo.svg", use_container_width=True)
+    st.sidebar.markdown("---")
 
     if st.session_state.user is not None:
         user = st.session_state.user
@@ -77,8 +77,12 @@ else:
     # -----------------------------------------------------------------------
     # Startseite: Login + Registrierung
     # -----------------------------------------------------------------------
-    st.title("EKG-Studienauswertung")
-    st.write("Willkommen! Bitte melden Sie sich an oder registrieren Sie sich.")
+    st.image("data/pictures/ekg_logo.svg", width=320)
+    st.markdown(
+        "<p style='color:#64748b; font-size:16px; margin-top:-8px;'>"
+        "Willkommen! Bitte melden Sie sich an oder registrieren Sie sich.</p>",
+        unsafe_allow_html=True,
+    )
 
     col_login, col_reg = st.columns(2)
 
@@ -94,14 +98,30 @@ else:
             user = login.login(username, password)
             if user is None:
                 st.error("Benutzername oder Passwort falsch.")
+            elif user.role == "proband" and user.person_id:
+                person = db.get_person_by_id(user.person_id)
+                if person and person.status == "pending":
+                    st.warning(
+                        f"Hallo **{person.firstname}**, deine Registrierung wird noch geprüft. "
+                        "Sobald die Studienleitung deinen Account freischaltet, kannst du dich einloggen."
+                    )
+                elif person and person.status == "rejected":
+                    st.error(
+                        f"Hallo **{person.firstname}**, deine Registrierung wurde leider abgelehnt. "
+                        "Bitte wende dich direkt an die Studienleitung für weitere Informationen."
+                    )
+                else:
+                    st.session_state.user = user
+                    st.rerun()
             else:
                 st.session_state.user = user
                 st.rerun()
 
         if st.session_state.reg_success:
             st.success(
-                "Registrierung eingereicht! Die Studienleitung prüft Ihre Anfrage. "
-                "Nach der Freischaltung erhalten Sie Ihre Login-Daten."
+                "Registrierung eingereicht! Die Studienleitung prüft deine Anfrage. "
+                "Du kannst dich mit deinen gewählten Zugangsdaten einloggen, "
+                "sobald dein Account freigeschalten wurde."
             )
 
     # --- Registrierung ---
