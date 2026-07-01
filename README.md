@@ -111,5 +111,6 @@ Alle Abhängigkeiten und ihre Versionen sind in `pyproject.toml` definiert und i
 
 ## Autoren
 
+- Luisa Grimm 
 - Clara Kerber
-- Luisa Grimm
+
