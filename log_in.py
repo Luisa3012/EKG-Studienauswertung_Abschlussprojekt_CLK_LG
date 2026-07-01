@@ -7,6 +7,7 @@ class User:
 
 
 class Login:
+
     def __init__(self, db):
         self.db = db
 
@@ -34,3 +35,4 @@ class Login:
         )
         self.db.add_user(username, password, "proband", person_id)
         return self.db.get_person_by_id(person_id)
+

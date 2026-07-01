@@ -9,6 +9,7 @@ _PLOT_MAX_POINTS = 10_000
 
 
 class EKGdata:
+
     """Lädt und analysiert EKG-Messdaten aus einer Tab-separierten Textdatei.
 
     Die Rohdatei enthält zwei Spalten: Messwerte in mV und Zeit in ms,
@@ -39,8 +40,6 @@ class EKGdata:
         )
         if max_samples is not None:
             self.df = self.df.iloc[:max_samples]
-
-    # ---------------------------------------------------------------- Analyse
 
     def find_peaks(self, threshold: float = 0.9) -> pd.Series:
         """Erkennt R-Peaks im EKG-Signal mittels Schwellenwert-Methode.
@@ -224,7 +223,6 @@ class EKGdata:
 
         return anomalies
 
-    # --------------------------------------------------------------- Plots
 
     @staticmethod
     def _downsample(df: pd.DataFrame, max_points: int = _PLOT_MAX_POINTS) -> pd.DataFrame:

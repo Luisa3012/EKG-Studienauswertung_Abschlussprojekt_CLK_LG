@@ -6,7 +6,7 @@
     "picture_path" : "data/pictures/tb.jpg",
 	"gender" : "Male",
 	"email"	: "julian.huber@example.com",
-	"status" : "pending",
+	"status" : "approved",
 	"intervall_tests": {
 		"id": 1,
 		"date": "10.2.2023",
@@ -41,7 +41,7 @@
 	"lastname": "Schmirander",
 	"gender" : "Male",
 	"email"	: "yunus.schmirander@example.com",
-	"status" : "rejected",
+	"status" : "approved",
     "picture_path" : "data/pictures/bl.jpg",
 	"ekg_tests": [{
 		"id": 4,

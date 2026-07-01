@@ -5,17 +5,16 @@ from test import Test
 
 
 class Study:
+
     def __init__(self):
         self.persons = []
         self.tests = []
 
-    # ---------------------------------------------------------- Laden aus DB
 
     def load_from_db(self, db):
         self.persons = db.get_all_persons()
         self.tests = db.get_all_tests()
 
-    # -------------------------------------------- Personen-Zugriff (in-mem)
 
     def get_all_persons(self):
         return self.persons
@@ -29,7 +28,6 @@ class Study:
     def get_pending_persons(self):
         return [p for p in self.persons if p.status == "pending"]
 
-    # ----------------------------------------------- Test-Zugriff (in-mem)
 
     def get_all_tests(self):
         return self.tests
@@ -43,7 +41,6 @@ class Study:
                 return t
         return None
 
-    # ------------------------------------------------------ Test hinzufügen
 
     def add_test_with_file_upload(self, db, person_id, date, uploaded_file):
         """
@@ -61,7 +58,6 @@ class Study:
         self.tests.append(new_test)
         return new_test
 
-    # ----------------------------------------------------------- Statistiken
 
     def get_total_persons(self):
         return len(self.persons)
@@ -73,7 +69,7 @@ class Study:
         values = [t.avg_hr() for t in self.tests if t.avg_hr() is not None]
         return sum(values) / len(values) if values else None
 
-    # ----------------------------------------- JSON-Export (Datenexport CSV)
+
 
     def export_stats_to_csv(self):
         """Gibt einen CSV-String aller Test-Kennzahlen zurück."""
@@ -86,8 +82,53 @@ class Study:
             dur = t.duration()
             lines.append(
                 f"{name},{t.test_id},{t.date},"
-                f"{dur:.1f if dur else ''},"
-                f"{avg:.1f if avg else ''},"
-                f"{mx:.1f if mx else ''}"
+                f"{f'{dur:.1f}' if dur is not None else ''},"
+                f"{f'{avg:.1f}' if avg is not None else ''},"
+                f"{f'{mx:.1f}' if mx is not None else ''}"
             )
         return "\n".join(lines)
+
+
+if __name__ == "__main__":
+    from person import Person
+    from test import Test
+
+    p1 = Person(1, 1989, "Julian", "Huber", "data/pictures/tb.jpg",
+                "Male", "julian.huber@example.com", "approved")
+    p2 = Person(2, 1967, "Yannic", "Heyer", "data/pictures/js.jpg",
+                "Male", "yannic.heyer@example.com", "pending")
+
+    t1 = Test(test_id=1, person_id=1, date="10.2.2023",
+              result_link="data/ekg_data/01_Ruhe.txt")
+    t2 = Test(test_id=2, person_id=1, date="11.3.2023",
+              result_link="data/ekg_data/04_Belastung.txt")
+    t3 = Test(test_id=3, person_id=2, date="10.2.2023",
+              result_link="data/ekg_data/02_Ruhe.txt")
+
+    study = Study()
+    study.persons = [p1, p2]
+    study.tests = [t1, t2, t3]
+
+    print("Alle Personen:")
+    for p in study.get_all_persons():
+        print(" ", p)
+
+    print("\nPerson mit ID 1:", study.get_person_by_id(1))
+    print("Person mit ID 99:", study.get_person_by_id(99))
+
+    print("\nPending-Probanden:")
+    for p in study.get_pending_persons():
+        print(" ", p)
+
+    print(f"\nAnzahl Tests gesamt: {study.get_total_tests()}")
+    print(f"Anzahl Personen gesamt: {study.get_total_persons()}")
+
+    print("\nTests von Person 1:")
+    for t in study.get_tests_by_person(1):
+        print(f"  Test {t.test_id} vom {t.date}")
+
+    print("\nTest mit ID 2:", study.get_test_by_id(2).date)
+    print("Test mit ID 99:", study.get_test_by_id(99))
+
+    print("\nCSV-Export:")
+    print(study.export_stats_to_csv())
